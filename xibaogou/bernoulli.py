@@ -153,13 +153,13 @@ class RDBP(BP):
         self.parameters['gamma'] = np.random.randn(common_channels, linear_channels)
         self.parameters['b'] = np.random.randn(common_channels)
 
-    def _build_separable_convolution(self, no_of_filters, in_shape):
+    def _build_separable_convolution(self, no_of_filters, X_, data_shape):
+        # X_ is row, col, depth == in_shape
         Vxy_ = T.tensor3(dtype=floatX)  # filters, row, col
         Vz_ = T.matrix(dtype=floatX)  # filters, depth
-        X_ = T.tensor3(dtype=floatX) # input matrix with size width X height X depth
 
         batchsize, in_channels = 1, 1
-        in_width, in_height, in_depth = in_shape
+        in_width, in_height, in_depth = data_shape
         flt_row, flt_col, flt_depth = self.voxel
 
         # X is row, col, depth, channel
@@ -187,32 +187,24 @@ class RDBP(BP):
                 border_mode='valid'
             ).squeeze()
             , sequences=(xy_, Vz_))
-        return retval_, (Vxy_, Vz_), X_
+        return retval_, (Vxy_, Vz_)
 
-    def _build_exponent(self, X):
-        X = X[..., None]  # row, col, depth, channels=1
-        X_ = th.shared(np.require(X, dtype=floatX), borrow=True, name='stack')
+    def _build_exponent(self, X_, data_shape):
+        # X = X[..., None]  # row, col, depth, channels=1
+        # X_ = th.shared(np.require(X, dtype=floatX), borrow=True, name='stack')
 
         linear_channels, quadratic_channels, common_channels = \
             self.linear_channels, self.quadratic_channels, self.common_channels
 
-        quadratic_filter_, (Uxy_, Uz_) = self._build_separable_convolution(quadratic_channels, X_, X.shape)
-        linear_filter_, (Wxy_, Wz_) = self._build_separable_convolution(linear_channels, X_, X.shape)
+        quadratic_filter_, (Uxy_, Uz_) = self._build_separable_convolution(quadratic_channels, X_, data_shape)
+        linear_filter_, (Wxy_, Wz_) = self._build_separable_convolution(linear_channels, X_, data_shape)
 
         b_ = T.dvector()  # bias
         beta_ = T.dmatrix()
         gamma_ = T.dmatrix()
 
-        quadr_filter_ = T.tensordot(quadratic_filter_ ** 2, beta_, (0, 1)).dimshuffle(3, 0, 1, 2)
-        lin_filter_ = T.tensordot(linear_filter_, gamma_, (0, 1)).dimshuffle(3, 0, 1, 2)
-
-        # Uxy = np.random.randn(quadratic_channels, flt_row, flt_col, in_channels)
-        # Uz = np.random.randn(quadratic_channels, 1, flt_depth, in_channels)
-        # Wxy = np.random.randn(linear_channels, flt_row, flt_col, in_channels)
-        # Wz = np.random.randn(linear_channels, 1, flt_depth, in_channels)
-        # beta = np.random.randn(common_channels, quadratic_channels)
-        # gamma = np.random.randn(common_channels, linear_channels)
-        # b = np.random.randn(linear_channels)
+        quadr_filter_ = T.tensordot(beta_, quadratic_filter_ ** 2, (1, 0))#.dimshuffle(3, 0, 1, 2)
+        lin_filter_ = T.tensordot(gamma_, linear_filter_,  (1,0))#.dimshuffle(3, 0, 1, 2)
 
         exponent_ = quadr_filter_ + lin_filter_ + b_.dimshuffle(0, 'x', 'x', 'x')
         return exponent_, (Uxy_, Uz_, Wxy_, Wz_, beta_, gamma_, b_)
