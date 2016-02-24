@@ -52,18 +52,20 @@ class BP:
 
         return Y
 
-    def _build_crossentropy(self, X, cell_locations):
-        Y = self._build_label_stack(X, cell_locations)
-        Y_ = th.shared(np.require(Y, dtype=floatX), borrow=True, name='cells')
+    def _single_cross_entropy(self, data_shape):
+        # Y = self._build_label_stack(X, cell_locations)
+        X_ = T.tensor3('stack') #th.shared(np.require(Y, dtype=floatX), borrow=True, name='cells')
+        Y_ = T.tensor3('cells') #th.shared(np.require(Y, dtype=floatX), borrow=True, name='cells')
 
-        p_, parameters_ = self._build_probability_map(X)
+        p_, parameters_ = self._build_probability_map(X_, data_shape)
 
         loglik_ = Y_ * T.log(p_) + (1 - Y_) * T.log(1 - p_)
 
         cross_entropy_ = -T.mean(loglik_)
         dcross_entropy_ = T.grad(cross_entropy_, parameters_)
 
-        return th.function(parameters_, cross_entropy_), th.function(parameters_, dcross_entropy_)
+        return th.function((X_, Y_) + parameters_, cross_entropy_), \
+               th.function((X_, Y_) + parameters_, dcross_entropy_)
 
     def set_parameters(self, **kwargs):
         for k, v in kwargs.items():
@@ -71,9 +73,10 @@ class BP:
                 self.parameters[k] = v
 
     def P(self, X, full=False):
-        p_, params_ = self._build_probability_map(X)
-        p = th.function(params_, p_)
-        P = p(*tuple(self.parameters.values()))
+        X_ = T.tensor3('stack') #th.shared(np.require(Y, dtype=floatX), borrow=True, name='cells')
+        p_, params_ = self._build_probability_map(X_, X.shape)
+        p = th.function((X_, ) + params_, p_)
+        P = p(*((X, ) + tuple(self.parameters.values())))
         if not full:
             return P
         else:
@@ -86,11 +89,11 @@ class BP:
         return roc_auc_score(self._build_label_stack(X, cell_locations).ravel(), self.P(X).ravel(), **kwargs)
 
     def cross_entropy(self, X, cell_locations):
-        ce, _ = self._build_crossentropy(X, cell_locations)
+        ce, _ = self._single_cross_entropy(X, cell_locations)
         return ce(*self.parameters.values()) / np.log(2)
 
     def fit(self, X, cell_locations, **options):
-        ll, dll = self._build_crossentropy(X, cell_locations)
+        ll, dll = self._single_cross_entropy(X, cell_locations)
         # p_, params_ = self._build_probability_map(X)
         # P = th.function(params_, p_)
         slices, shapes = [], []
@@ -134,19 +137,19 @@ class RDBP(BP):
         flt_width, flt_height, flt_depth = self.voxel
 
         # horizontal components of the filters
-        self.parameters['u_xy'] = np.random.rand(quadratic_channels, flt_width, flt_height, 1)
+        self.parameters['u_xy'] = np.random.rand(quadratic_channels, flt_width, flt_height)
         self.parameters['u_xy'] /= self.parameters['u_xy'].size
 
         # certial components of the filters
-        self.parameters['u_z'] = np.random.rand(quadratic_channels, 1, flt_depth, 1)
+        self.parameters['u_z'] = np.random.rand(quadratic_channels, flt_depth)
         self.parameters['u_z'] /= self.parameters['u_z'].size
 
         # horizontal components of the filters
-        self.parameters['w_xy'] = np.random.rand(linear_channels, flt_width, flt_height, 1)
+        self.parameters['w_xy'] = np.random.rand(linear_channels, flt_width, flt_height)
         self.parameters['w_xy'] /= self.parameters['w_xy'].size
 
         # vertical components of the filters
-        self.parameters['w_z'] = np.random.rand(linear_channels, 1, flt_depth, 1)
+        self.parameters['w_z'] = np.random.rand(linear_channels, flt_depth)
         self.parameters['w_z'] /= self.parameters['w_z'].size
 
         self.parameters['beta'] = np.random.randn(exponentials, quadratic_channels)
@@ -237,8 +240,8 @@ class RDBP(BP):
         exponent_, params_ = self._build_exponent(X_, data_shape)
         p_ = T.exp(exponent_).sum(axis=0)
         # apply logistic function to log p_ and add a bit of offset for numerical stability
-        p_ = p_ / (1 + p_) * (1 - 2 * 1e-8) + 1e-8
-        return p_, params_
+        p2_ = p_ / (1 + p_) * (1 - 2 * 1e-8) + 1e-8
+        return p2_, params_
 
     def __str__(self):
         return """

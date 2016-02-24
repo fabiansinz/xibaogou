@@ -17,12 +17,19 @@ linear_channels, quadratic_channels, common_channels = 4, 3, 2
 flt_row, flt_col, flt_depth = (11, 7, 3)
 Uxy = np.random.randn(quadratic_channels, flt_row, flt_col)
 Uz = np.random.randn(quadratic_channels, flt_depth)
+Uxy /= Uxy.size
+Uz /= Uz.size
+
 Wxy = np.random.randn(linear_channels, flt_row, flt_col)
 Wz = np.random.randn(linear_channels, flt_depth)
+Wxy /= Wxy.size
+Wz /= Wz.size
+
 beta = np.random.randn(common_channels, quadratic_channels)
 gamma = np.random.randn(common_channels, linear_channels)
 b = np.random.randn(common_channels)
 X = np.random.randn(50, 40, 30)
+cells = np.c_[tuple((np.random.randint(i, size=10) for i in X.shape))]
 
 def test_separable_convolution():
     """Testing separable convolution"""
@@ -109,6 +116,19 @@ def test_probability():
     idx = ~np.isnan(p2) & ~np.isnan(p)
     assert_true(np.abs(p2[idx] - p[idx]).max() < 1e-10, 'probability does not match up')
 
+def test_single_cross_entropy():
+    rdbp = RDBP((flt_row, flt_col, flt_depth), quadratic_channels=quadratic_channels, linear_channels=linear_channels,
+                exponentials=2)
+    ce, dce = rdbp._single_cross_entropy(X.shape)
+    #----------------------------------
+    # TODO: Remove this later
+    from IPython import embed
+    embed()
+    # exit()
+    #----------------------------------
+
+
+
 
 if __name__ == "__main__":
-        test_probability()
+        test_single_cross_entropy()
