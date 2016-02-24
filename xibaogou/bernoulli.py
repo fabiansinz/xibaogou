@@ -125,12 +125,12 @@ class BP:
 
 
 class RDBP(BP):
-    def __init__(self, voxel, common_channels=2, linear_channels=2, quadratic_channels=2):
+    def __init__(self, voxel, exponentials=2, linear_channels=2, quadratic_channels=2):
         super(RDBP, self).__init__(voxel)
 
         self.linear_channels = linear_channels
         self.quadratic_channels = quadratic_channels
-        self.common_channels = common_channels
+        self.common_channels = exponentials
         flt_width, flt_height, flt_depth = self.voxel
 
         # horizontal components of the filters
@@ -149,9 +149,9 @@ class RDBP(BP):
         self.parameters['w_z'] = np.random.rand(linear_channels, 1, flt_depth, 1)
         self.parameters['w_z'] /= self.parameters['w_z'].size
 
-        self.parameters['beta'] = np.random.randn(common_channels, quadratic_channels)
-        self.parameters['gamma'] = np.random.randn(common_channels, linear_channels)
-        self.parameters['b'] = np.random.randn(common_channels)
+        self.parameters['beta'] = np.random.randn(exponentials, quadratic_channels)
+        self.parameters['gamma'] = np.random.randn(exponentials, linear_channels)
+        self.parameters['b'] = np.random.randn(exponentials)
 
     def _build_separable_convolution(self, no_of_filters, X_, data_shape):
         """

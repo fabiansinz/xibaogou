@@ -13,11 +13,21 @@ from scipy import signal
 import itertools
 
 
+linear_channels, quadratic_channels, common_channels = 4, 3, 2
+flt_row, flt_col, flt_depth = (11, 7, 3)
+Uxy = np.random.randn(quadratic_channels, flt_row, flt_col)
+Uz = np.random.randn(quadratic_channels, flt_depth)
+Wxy = np.random.randn(linear_channels, flt_row, flt_col)
+Wz = np.random.randn(linear_channels, flt_depth)
+beta = np.random.randn(common_channels, quadratic_channels)
+gamma = np.random.randn(common_channels, linear_channels)
+b = np.random.randn(common_channels)
+X = np.random.randn(50, 40, 30)
+
 def test_separable_convolution():
     """Testing separable convolution"""
     channels = 3
     flt_row, flt_col, flt_depth = (7, 5, 3)
-    in_channels = 1
 
     b = RDBP((flt_row, flt_col, flt_depth), quadratic_channels=channels, linear_channels=channels)
     X = np.random.randn(50, 40, 30)
@@ -40,20 +50,9 @@ def test_separable_convolution():
 
 
 def test_exponent():
-    linear_channels, quadratic_channels, common_channels = 4, 3, 2
-    flt_row, flt_col, flt_depth = (11, 7, 3)
-
-    Uxy = np.random.randn(quadratic_channels, flt_row, flt_col)
-    Uz = np.random.randn(quadratic_channels, flt_depth)
-    Wxy = np.random.randn(linear_channels, flt_row, flt_col)
-    Wz = np.random.randn(linear_channels, flt_depth)
-    beta = np.random.randn(common_channels, quadratic_channels)
-    gamma = np.random.randn(common_channels, linear_channels)
-    b = np.random.randn(common_channels)
 
     rdbp = RDBP((flt_row, flt_col, flt_depth), quadratic_channels=quadratic_channels, linear_channels=linear_channels,
-                common_channels=2)
-    X = np.random.randn(50, 40, 30)
+                exponentials=2)
     X_ = T.tensor3(dtype=floatX)
     quadratic_filter_, (Uxy_, Uz_) = rdbp._build_separable_convolution(quadratic_channels, X_, X.shape)
     linear_filter_, (Wxy_, Wz_) = rdbp._build_separable_convolution(linear_channels, X_, X.shape)
@@ -89,21 +88,10 @@ def test_exponent():
 
 
 def test_probability():
-    linear_channels, quadratic_channels, common_channels = 4, 3, 2
-    flt_row, flt_col, flt_depth = (11, 7, 3)
-
-    Uxy = np.random.randn(quadratic_channels, flt_row, flt_col)
-    Uz = np.random.randn(quadratic_channels, flt_depth)
-    Wxy = np.random.randn(linear_channels, flt_row, flt_col)
-    Wz = np.random.randn(linear_channels, flt_depth)
-    beta = np.random.randn(common_channels, quadratic_channels)
-    gamma = np.random.randn(common_channels, linear_channels)
-    b = np.random.randn(common_channels)
 
     rdbp = RDBP((flt_row, flt_col, flt_depth), quadratic_channels=quadratic_channels, linear_channels=linear_channels,
-                common_channels=2)
+                exponentials=2)
 
-    X = np.random.randn(50, 40, 30)
     X_ = T.tensor3(dtype=floatX)
     exponent_, params_ = rdbp._build_exponent(X_, X.shape)
     ef = th.function((X_,) + params_, exponent_)
