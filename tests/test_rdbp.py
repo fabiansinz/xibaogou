@@ -70,11 +70,8 @@ def test_exponent():
     qf2 = th.function([X_, Uxy_, Uz_, beta_], squadr_filter_)
     lf2 = th.function([X_, Wxy_, Wz_, gamma_], slin_filter_)
 
-
-
     exponent_, (Uxy_, Uz_, Wxy_, Wz_, beta_, gamma_, b_) = rdbp._build_exponent(X_, X.shape)
     ef = th.function([X_, Uxy_, Uz_, Wxy_, Wz_ ,beta_, gamma_, b_], exponent_)
-
 
     Q = qf(X, Uxy, Uz)
     L = lf(X, Wxy, Wz)

@@ -154,6 +154,16 @@ class RDBP(BP):
         self.parameters['b'] = np.random.randn(common_channels)
 
     def _build_separable_convolution(self, no_of_filters, X_, data_shape):
+        """
+        Builds a theano function that performas a 3d convolution which is separable in
+        xy vs. z on the stack.
+
+        :param no_of_filters: number of convolution filters
+        :param X_: 3d tensor representing the stack (row, col, depth)
+        :param data_shape: shape of the real data (the tensor has no shape yet)
+        :return: theano symbolic expression, (Uxy tensor, Uz tensor)
+        """
+
         # X_ is row, col, depth == in_shape
         Vxy_ = T.tensor3(dtype=floatX)  # filters, row, col
         Vz_ = T.matrix(dtype=floatX)  # filters, depth
@@ -171,7 +181,7 @@ class RDBP(BP):
             filter_shape=(no_of_filters, in_channels, flt_row, flt_col),
             image_shape=(in_depth, in_channels, in_width, in_height),
             border_mode='valid'
-        ).dimshuffle(1, 2, 3, 0) # the output is shaped (filters, row, col, depth)
+        ).dimshuffle(1, 2, 3, 0)  # the output is shaped (filters, row, col, depth)
 
         retval_, _ = theano.map(
             lambda v, f:
@@ -190,8 +200,13 @@ class RDBP(BP):
         return retval_, (Vxy_, Vz_)
 
     def _build_exponent(self, X_, data_shape):
-        # X = X[..., None]  # row, col, depth, channels=1
-        # X_ = th.shared(np.require(X, dtype=floatX), borrow=True, name='stack')
+        """
+        Builds the exponent of the nonlinearty (see README or Theis et al. 2013)
+
+        :param X_: 3d tensor representing the stack (row, col, depth)
+        :param data_shape: shape of the real data (the tensor has no shape yet)
+        :return: symbolic tensor for the exponent, (Uxy, Uz, Wxy, Wz, beta, gamma, b)
+        """
 
         linear_channels, quadratic_channels, common_channels = \
             self.linear_channels, self.quadratic_channels, self.common_channels
@@ -203,19 +218,26 @@ class RDBP(BP):
         beta_ = T.dmatrix()
         gamma_ = T.dmatrix()
 
-        quadr_filter_ = T.tensordot(beta_, quadratic_filter_ ** 2, (1, 0))#.dimshuffle(3, 0, 1, 2)
-        lin_filter_ = T.tensordot(gamma_, linear_filter_,  (1,0))#.dimshuffle(3, 0, 1, 2)
+        quadr_filter_ = T.tensordot(beta_, quadratic_filter_ ** 2, (1, 0))
+        lin_filter_ = T.tensordot(gamma_, linear_filter_, (1, 0))
 
         exponent_ = quadr_filter_ + lin_filter_ + b_.dimshuffle(0, 'x', 'x', 'x')
         return exponent_, (Uxy_, Uz_, Wxy_, Wz_, beta_, gamma_, b_)
 
-    def _build_probability_map(self, X):
-        exponent_, params_ = self._build_exponent(X)
+    def _build_probability_map(self, X_, data_shape):
+        """
+        Builds a theano symbolic expression that yields the estimated probability of a cell per voxel.
 
+
+        :param X_: 3d tensor representing the stack (row, col, depth)
+        :param data_shape: shape of the real data (the tensor has no shape yet)
+        :return: symbolic tensor for P, (Uxy, Uz, Wxy, Wz, beta, gamma, b)
+        """
+
+        exponent_, params_ = self._build_exponent(X_, data_shape)
         p_ = T.exp(exponent_).sum(axis=0)
-        p_ = p_ / (1 + p_) * (
-            1 - 2 * 1e-8) + 1e-8  # apply logistic function to log p_ and add a bit of offset for numerical stability
-
+        # apply logistic function to log p_ and add a bit of offset for numerical stability
+        p_ = p_ / (1 + p_) * (1 - 2 * 1e-8) + 1e-8
         return p_, params_
 
     def __str__(self):
