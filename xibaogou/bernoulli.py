@@ -24,23 +24,23 @@ class BP:
         self.voxel = voxel
         self.parameters = OrderedDict()
 
-    def _build_label_stack(self, X, cell_locations, full=False):
+    def _build_label_stack(self, data_shape, cell_locations, full=False):
         """
         Builds that stack in which the locations indicated by cell_locations are set to one.
         Otherwise the values of the stack are zero.
 
-        :param X: original stack
+        :param data_shape: shape of original stack
         :param cell_locations: Nx3 integer array will cell locations (0 based indices)
         :param full: indicates whether the result should have full size of the size after valid convolution
         :return: numpy array with stack indicating the cell locations.
         """
 
         if full:
-            Y = np.zeros_like(X)
+            Y = np.zeros(data_shape)
             i, j, k = cell_locations.T
             Y[i, j, k] = 1
         else:
-            y_shape = tuple(i - j + 1 for i, j in zip(X.shape, self.voxel))
+            y_shape = tuple(i - j + 1 for i, j in zip(data_shape, self.voxel))
             Y = np.zeros(y_shape)
 
             cell_locations = cell_locations[np.all(cell_locations < Y.shape, axis=1)
@@ -53,7 +53,6 @@ class BP:
         return Y
 
     def _single_cross_entropy(self, data_shape):
-        # Y = self._build_label_stack(X, cell_locations)
         X_ = T.tensor3('stack') #th.shared(np.require(Y, dtype=floatX), borrow=True, name='cells')
         Y_ = T.tensor3('cells') #th.shared(np.require(Y, dtype=floatX), borrow=True, name='cells')
 
@@ -86,16 +85,29 @@ class BP:
             return fullP
 
     def auc(self, X, cell_locations, **kwargs):
-        return roc_auc_score(self._build_label_stack(X, cell_locations).ravel(), self.P(X).ravel(), **kwargs)
+        """
+        Computes the area under the curve for the current parameter setting.
 
-    def cross_entropy(self, X, cell_locations):
-        ce, _ = self._single_cross_entropy(X, cell_locations)
-        return ce(*self.parameters.values()) / np.log(2)
+        :param X: stack
+        :param cell_locations: N X 3 array of cell locations (dtype=int)
+        :param kwargs: additionaly keyword arguments passed to sklearn.metrics.roc_auc_score
+        :return: area under the curve
+        """
+        return roc_auc_score(self._build_label_stack(X.shape, cell_locations).ravel(), self.P(X).ravel(), **kwargs)
 
-    def fit(self, X, cell_locations, **options):
-        ll, dll = self._single_cross_entropy(X, cell_locations)
-        # p_, params_ = self._build_probability_map(X)
-        # P = th.function(params_, p_)
+
+    def fit(self, stacks, cell_locations, **options):
+        """
+        Fits the model.
+
+        :param stacks: Iterable of stacks. All of them need to have the same size.
+        :param cell_locations: Iterable of cell locations (N X 3 array of dtype int)
+        :param options: options for scipy.minimize
+        """
+        ll, dll = self._single_cross_entropy(stacks[0].shape)
+
+        Ys = [self._build_label_stack(x.shape, c) for x,c in zip(stacks, cell_locations)]
+
         slices, shapes = [], []
         i = 0
         for elem in self.parameters.values():
@@ -109,11 +121,12 @@ class BP:
         def unravel(x):
             return tuple(x[sl].reshape(sh) for sl, sh in zip(slices, shapes))
 
-        def obj(x):
-            return ll(*unravel(x))
+        def obj(par):
+            return np.mean([ll(*( (x,y) + unravel(par))) for x,y in zip(stacks, Ys)])
 
-        def dobj(x):
-            return ravel(dll(*unravel(x)))
+
+        def dobj(par):
+            return np.mean([ravel(dll(*( (x,y) + unravel(par)))) for x,y in zip(stacks, Ys)], axis=0)
 
         def callback(x):
             print('Cross entropy:', obj(x))
