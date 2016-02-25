@@ -19,9 +19,4 @@ Ys = [rdbp._build_label_stack(stack_size, c, full=True) for c in cells]
 stacks = [rdbp._build_label_stack(stack_size, c, full=True) + np.random.randn(*stack_size) * 0.01 for c in cells]
 
 rdbp.fit(stacks, cells)
-#----------------------------------
-# TODO: Remove this later
-from IPython import embed
-embed()
-# exit()
-#----------------------------------
+
