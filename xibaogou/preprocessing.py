@@ -52,37 +52,3 @@ def local_standardize(X, kernelsize=(17, 17, 15)):
     return  (X - local_mean)/ np.sqrt(local_sq - local_mean**2)
 
 
-def whiten(X, n=4, cut_off=.4):
-    Y = np.fft.fftn(X)
-    wx, wy, wz = X.shape
-    W = np.sqrt(np.fft.fftfreq(wx)[:, None, None] ** 2
-                + np.fft.fftfreq(wy)[None, :, None] ** 2
-                + np.fft.fftfreq(wz)[None, None, :] ** 2)
-    F = W * np.exp(- (W / cut_off) ** n)
-
-    X = np.fft.ifftn(Y * F).real
-    return X
-
-def average_channels(X):
-    if len(X.shape) > 3:
-        X = X.mean(axis=-1)
-    return X
-
-
-def compute_crange(K, basefactors=2 ** np.arange(-3, 4.)):
-    """
-    Estimates a good range for C based on the inverse variance in features space
-    of the kernel with kernel matrix K.
-
-    See also:
-    Chapelle, O., & Zien, A. (2005). Semi-Supervised Classification by Low Density Separation.
-
-    :param K: kernel matrix
-    :param basefactors: factors that get multiplied with the inverse variance to get a good range for C
-    :returns: basefactors/estimated variance in feature space
-
-    """
-    s2 = np.mean(np.diag(K)) - np.mean(K.ravel())
-    if s2 == 0.:
-        warnings.warn("Variance in feature space is 0. Using 1!")
-    return basefactors / s2
