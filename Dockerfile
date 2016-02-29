@@ -22,3 +22,5 @@ RUN pip install h5py
 RUN \
   git clone https://github.com/fabiansinz/xibaogou.git && \
   pip install -e xibaogou/
+
+ENTRYPOINT /bin/bash
