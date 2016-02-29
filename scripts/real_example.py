@@ -9,6 +9,7 @@ from xibaogou.preprocessing import histeq, unsharp_masking, medianfilter, center
 
 import numpy as np
 from xibaogou import RDBP
+import pickle
 
 
 def max_iterator(P, n, voxel):
@@ -29,7 +30,7 @@ preprocess2 = lambda x: local_standardize(medianfilter(x))
 linear_channels, quadratic_channels, exponentials = 2, 2, 2
 voxel = (17, 17, 15)
 
-rdbp = RDBP(voxel, linear_channels=linear_channels, quadratic_channels=quadratic_channels, exponentials=1)
+rdbp = RDBP(voxel, linear_channels=linear_channels, quadratic_channels=quadratic_channels, exponentials=exponentials)
 
 stacks = []
 cells = []
@@ -42,8 +43,8 @@ for stack_file in sys.argv[1:]:
 # CellLabeler(stacks[0], cells=cells[0])
 rdbp.fit(stacks, cells, maxiter=20)
 
+with open('mymodel.pkl', 'wb') as fid:
+    fid.write(rdbp, fid)
+
 P = rdbp.P(stacks[0], full=True)
-
-
 new_cells = np.asarray(list(max_iterator(P, 100, voxel)), dtype=int)
-CellLabeler(stacks[0], cells=new_cells)
